@@ -65,6 +65,32 @@ def load_models():
     model_emotions = tf.keras.models.load_model("EmotionClass.keras", compile=False)
     return model_style, model_category, model_emotions
 
+from math import sqrt
+
+# Diccionario base: emociones y sus colores representativos
+emotion_colors = {
+    "amor": (255, 105, 180),       # rosa fuerte
+    "felicidad": (255, 223, 0),    # amarillo brillante
+    "odio": (128, 0, 0),           # rojo oscuro
+    "enojo": (255, 0, 0),          # rojo vivo
+    "deseo": (255, 0, 127),        # fucsia
+    "tristeza": (30, 144, 255),    # azul medio
+    "decepción": (112, 128, 144),  # gris azulado
+    "miedo": (75, 0, 130),         # índigo
+    "paz": (144, 238, 144),        # verde claro
+}
+
+def assign_emotion_to_color(color_rgb):
+    """Asigna una emoción al color más cercano por distancia euclidiana en RGB."""
+    min_distance = float('inf')
+    closest_emotion = None
+    for emotion, base_rgb in emotion_colors.items():
+        distance = sqrt(sum((color_rgb[i] - base_rgb[i]) ** 2 for i in range(3)))
+        if distance < min_distance:
+            min_distance = distance
+            closest_emotion = emotion
+    return closest_emotion
+
 def preprocess_image(image, target_size=(128, 128)):
     img = image.resize(target_size)
     img_array = np.array(img) / 255.0
@@ -81,8 +107,12 @@ def get_palette(image, n_colors=7):
 def display_palette(colors):
     cols = st.columns(len(colors))
     for i, color in enumerate(colors):
+        emotion = assign_emotion_to_color(color)
         cols[i].markdown(
-            f"<div style='background-color: rgb{tuple(color)}; height: 50px; border-radius: 5px;'></div>",
+            f"""
+            <div style='background-color: rgb{tuple(color)}; height: 50px; border-radius: 5px;'></div>
+            <p style='text-align:center; font-weight:bold; color:#333;'>{emotion.capitalize()}</p>
+            """,
             unsafe_allow_html=True
         )
 

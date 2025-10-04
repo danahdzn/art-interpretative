@@ -1,7 +1,6 @@
 import streamlit as st
 import tensorflow as tf
 import numpy as np
-from pyngrok import ngrok
 from PIL import Image
 from sklearn.cluster import KMeans
 from openai import OpenAI

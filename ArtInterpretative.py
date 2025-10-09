@@ -68,11 +68,11 @@ def load_models_transformers():
     emotion_tokenizer = AutoTokenizer.from_pretrained(emotion_model_name)
     emotion_model = AutoModelForCausalLM.from_pretrained(emotion_model_name)
 
-    # Clasificador final de emociones
     emotion_classifier = pipeline(
         "text-classification",
         model="j-hartmann/emotion-english-distilroberta-base",
-        return_all_scores=True
+        return_all_scores=True,
+        framework="pt"
     )
 
     return caption_processor, caption_model, emotion_tokenizer, emotion_model, emotion_classifier

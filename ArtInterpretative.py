@@ -10,6 +10,16 @@ import base64
 from math import sqrt
 from transformers import pipeline, BlipProcessor, BlipForConditionalGeneration, AutoTokenizer, AutoModelForCausalLM
 import hashlib
+from googletrans import Translator
+
+# translation
+translator = Translator()
+def translate_text(text):
+    try:
+        translated = translator.translate(text, src='en', dest='es').text
+        return translated.capitalize()  # Primera letra mayúscula
+    except Exception:
+        return text.capitalize()
 
 # -----------------------------
 # Configuración OpenAI
@@ -68,7 +78,7 @@ def load_models_transformers():
 caption_processor, caption_model, emotion_tokenizer, emotion_model, emotion_classifier = load_models_transformers()
 
 # -----------------------------
-# Modelos Keras (solo 1 vez)
+# Modelos Keras
 # -----------------------------
 @st.cache_resource
 def load_models_keras():
@@ -109,12 +119,13 @@ def get_palette(image, n_colors=7):
     return kmeans.cluster_centers_.astype(int)
 
 def display_palette(colors):
-    cols = st.columns(len(colors))
-    for i, color in enumerate(colors):
+    for color in colors:
         emotion = assign_emotion_to_color(color)
-        cols[i].markdown(f"""
-            <div style='background-color: rgb{tuple(color)}; height:50px; border-radius:5px;'></div>
-            <p style='text-align:center; font-weight:bold; color:#333;'>{emotion.capitalize()}</p>
+        st.markdown(f"""
+        <div style='display:flex; align-items:center; margin-bottom:5px;'>
+            <div style='background-color: rgb{tuple(color)}; width:50px; height:50px; border-radius:5px; margin-right:10px;'></div>
+            <div style='font-weight:bold; color:#333;'>{emotion.capitalize()}</div>
+        </div>
         """, unsafe_allow_html=True)
 
 def generate_interpretation(emotions, style, category, keywords, description=""):
@@ -193,15 +204,15 @@ if uploaded_file:
     image = Image.open(uploaded_file).convert("RGB")
     col_img, col_results = st.columns([1,1])
     with col_img: st.image(image, caption="Image uploaded", use_container_width=False, width=500)
-
-    # Obtener predicciones (cacheadas)
     style_result, category_result, emotion_result, description, emotion_text, colors, pred_style, pred_category, emotions_list, pred_emotions = predict_all(image)
 
     with col_results:
+        description_es = translate_text(description)
+        emotion_text_es = translate_text(emotion_text)
         st.subheader("📝 Descripción de la obra")
-        st.write(description)
+        st.write(description_es)
         st.subheader("💭 Descripción emocional")
-        st.write(emotion_text)
+        st.write(emotion_text_es)
 
         st.subheader("🎨 Paleta de colores")
         display_palette(colors)
@@ -212,11 +223,18 @@ if uploaded_file:
             interpretation = generate_interpretation(emotion_result, style_result, category_result, keywords, description)
             st.write(interpretation)
 
+        pastel_styles = ['#FDCFE8', '#FADADD', '#FEE3E0', '#FFE0E6'] 
+        pastel_categories = ['#D6CDEA', '#E8D6F2', '#F2E0F8', '#F8EAFB']
+        pastel_emotions = ['#FFB3BA', '#FFDFBA', '#FFFFBA', '#BAFFC9', '#BAE1FF']
+
         # Tabs dashboard
         tab1, tab2, tab3 = st.tabs(["🎨 Style", "🖼️ Category", "💖 Emotion"])
         with tab1:
             df_styles = pd.DataFrame({"Estilo": ['Contemporary Art', 'Modern Art', 'Post Renaissance Art','Renaissance Art'], "Probabilidad": pred_style})
-            fig_styles = px.bar(df_styles, x="Estilo", y="Probabilidad", color="Probabilidad", color_continuous_scale="Blues", title="Distribución de estilos", width=1000, height=500)
+            fig_styles = px.bar(df_styles, x="Estilo", y="Probabilidad",
+                    title="Distribución de estilos",
+                    color="Probabilidad", color_discrete_sequence=pastel_styles,
+                    width=1000, height=500)
             st.plotly_chart(fig_styles, use_container_width=True)
         with tab2:
             df_categories = pd.DataFrame({"Categoría": ['Abstract Art', 'Abstract Expressionism', 'Art Informel', 'Baroque', 
@@ -224,15 +242,20 @@ if uploaded_file:
                                                         'Impressionism', 'Lyrical Abstraction', 'Magic Realism', 'Minimalism', 'Neo-Expressionism', 
                                                         'Neoclassicism', 'Northern Renaissance', 'Pop Art', 'Post-Impressionism', 'Realism', 'Rococo', 'Romanticism', 'Surrealism'], 
                                           "Probabilidad": pred_category})
-            fig_categories = px.bar(df_categories, x="Categoría", y="Probabilidad", color="Probabilidad", color_continuous_scale="Purples", title="Distribución de categorías", width=1000, height=500)
+            fig_categories = px.bar(df_categories, x="Categoría", y="Probabilidad",
+                        title="Distribución de categorías",
+                        color="Probabilidad", color_discrete_sequence=pastel_categories,
+                        width=1000, height=500)
             st.plotly_chart(fig_categories, use_container_width=True)
         with tab3:
             df_emotions = pd.DataFrame({"Emoción": emotions_list, "Probabilidad": pred_emotions})
-            fig_emotions = px.bar(df_emotions, x="Emoción", y="Probabilidad", color="Probabilidad", color_continuous_scale="Reds", title="Distribución de emociones", width=1000, height=500)
+            fig_emotions = px.bar(df_emotions, x="Emoción", y="Probabilidad",
+                      title="Distribución de emociones",
+                      color="Probabilidad", color_discrete_sequence=pastel_emotions,
+                      width=1000, height=500)
             st.plotly_chart(fig_emotions, use_container_width=True)
 
         st.subheader("Results")
         st.markdown(f"**Style:** {style_result}")
         st.markdown(f"**Category:** {category_result}")
         st.markdown(f"**Emotion:** {emotion_result}")
-        st.markdown(f"**Keyword:** {', '.join(keywords)}")

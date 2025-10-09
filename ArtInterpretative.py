@@ -109,13 +109,32 @@ def get_palette(image, n_colors=7):
     return kmeans.cluster_centers_.astype(int)
 
 def display_palette(colors):
-    cols = st.columns(len(colors))
-    for i, color in enumerate(colors):
-        emotion = assign_emotion_to_color(color)
-        cols[i].markdown(f"""
-            <div style='background-color: rgb{tuple(color)}; height:50px; border-radius:5px;'></div>
-            <p style='text-align:center; font-weight:bold; color:#333;'>{emotion.capitalize()}</p>
-        """, unsafe_allow_html=True)
+    # Convertimos colores a texto tipo rgb(x,y,z)
+    rgb_strings = [f"rgb({c[0]}, {c[1]}, {c[2]})" for c in colors]
+    emotions = [assign_emotion_to_color(c).capitalize() for c in colors]
+
+    # Gráfico tipo barras horizontales pastel
+    fig = go.Figure(data=[go.Bar(
+        x=[1]*len(colors),
+        y=emotions,
+        orientation='h',
+        marker=dict(color=rgb_strings),
+        text=rgb_strings,
+        textposition="outside"
+    )])
+    fig.update_layout(
+        title="🎨 Paleta de colores y emociones asociadas",
+        xaxis=dict(visible=False),
+        yaxis=dict(showticklabels=True),
+        height=300 + len(colors)*20,
+        plot_bgcolor='rgba(0,0,0,0)',
+        paper_bgcolor='rgba(0,0,0,0)',
+        margin=dict(l=100, r=50, t=60, b=30)
+    )
+    st.plotly_chart(fig, use_container_width=True)
+
+def expand_palette(palette, n):
+    return (palette * ((n // len(palette)) + 1))[:n]
 
 def generate_interpretation(emotions, style, category, keywords, description=""):
     if client is None: return "No se encontró API Key de OpenAI."
@@ -216,6 +235,7 @@ if uploaded_file:
         tab1, tab2, tab3 = st.tabs(["🎨 Style", "🖼️ Category", "💖 Emotion"])
         with tab1:
             pastel_styles = ['#FDCFE8', '#FADADD', '#FEE3E0', '#FFE0E6']  # rosa pastel
+            pastel_styles = expand_palette(pastel_styles, 4)
             df_styles = pd.DataFrame({"Estilo": ['Contemporary Art', 'Modern Art', 'Post Renaissance Art','Renaissance Art'], "Probabilidad": pred_style})
             fig_styles = px.bar(df_styles, x="Estilo", y="Probabilidad",
                     title="Distribución de estilos",
@@ -224,6 +244,7 @@ if uploaded_file:
             st.plotly_chart(fig_styles, use_container_width=True)
         with tab2:
             pastel_categories = ['#D6CDEA', '#E8D6F2', '#F2E0F8', '#F8EAFB']  # lila pastel
+            pastel_categories = expand_palette(pastel_categories, 22)
             df_categories = pd.DataFrame({"Categoría": ['Abstract Art', 'Abstract Expressionism', 'Art Informel', 'Baroque', 
                                                         'Color Field Painting', 'Cubism', 'Early Renaissance', 'Expressionism', 'High Renaissance',
                                                         'Impressionism', 'Lyrical Abstraction', 'Magic Realism', 'Minimalism', 'Neo-Expressionism', 
@@ -236,6 +257,7 @@ if uploaded_file:
             st.plotly_chart(fig_categories, use_container_width=True)
         with tab3:
             pastel_emotions = ['#FFB3BA', '#FFDFBA', '#FFFFBA', '#BAFFC9', '#BAE1FF']
+            pastel_emotions = expand_palette(pastel_emotions, len(emotions_list))
             df_emotions = pd.DataFrame({"Emoción": emotions_list, "Probabilidad": pred_emotions})
             fig_emotions = px.bar(df_emotions, x="Emoción", y="Probabilidad",
                       title="Distribución de emociones",

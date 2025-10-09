@@ -10,16 +10,6 @@ import base64
 from math import sqrt
 from transformers import pipeline, BlipProcessor, BlipForConditionalGeneration, AutoTokenizer, AutoModelForCausalLM
 import hashlib
-from googletrans import Translator
-
-# translation
-translator = Translator()
-def translate_text(text):
-    try:
-        translated = translator.translate(text, src='en', dest='es').text
-        return translated.capitalize()
-    except Exception:
-        return text.capitalize()
 
 # -----------------------------
 # Configuración OpenAI
@@ -207,12 +197,10 @@ if uploaded_file:
     style_result, category_result, emotion_result, description, emotion_text, colors, pred_style, pred_category, emotions_list, pred_emotions = predict_all(image)
 
     with col_results:
-        description_es = translate_text(description)
-        emotion_text_es = translate_text(emotion_text)
         st.subheader("📝 Descripción de la obra")
-        st.write(description_es)
+        st.write(description)
         st.subheader("💭 Descripción emocional")
-        st.write(emotion_text_es)
+        st.write(emotion_text)
 
         st.subheader("🎨 Paleta de colores")
         display_palette(colors)

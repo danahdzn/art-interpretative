@@ -7,7 +7,6 @@ openai
 plotly
 pandas
 transformers
-torch
-torchvision
-torchaudio
-transformers
+torch --index-url https://download.pytorch.org/whl/cpu
+torchvision --index-url https://download.pytorch.org/whl/cpu
+torchaudio --index-url https://download.pytorch.org/whl/cpu

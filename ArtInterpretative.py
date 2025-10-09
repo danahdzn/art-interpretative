@@ -17,7 +17,7 @@ translator = Translator()
 def translate_text(text):
     try:
         translated = translator.translate(text, src='en', dest='es').text
-        return translated.capitalize()  # Primera letra mayúscula
+        return translated.capitalize()
     except Exception:
         return text.capitalize()
 

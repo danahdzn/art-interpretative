@@ -7,3 +7,7 @@ openai
 plotly
 pandas
 transformers
+torch
+torchvision
+torchaudio
+transformers

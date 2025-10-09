@@ -267,4 +267,3 @@ if uploaded_file is not None:
         st.markdown(f"**Category:** {category_result}")
         st.markdown(f"**Emotion:** {emotion_result}")
         st.markdown(f"**Keyword:** {', '.join(keywords)}")
-

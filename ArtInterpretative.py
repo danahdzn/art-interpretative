@@ -84,8 +84,8 @@ caption_processor, caption_model, emotion_tokenizer, emotion_model, emotion_clas
 # -----------------------------
 @st.cache_resource
 def load_models_keras():
-    model_style = tf.keras.models.load_model("StyleClass.keras", compile=False)
-    model_category = tf.keras.models.load_model("CategoryClass.keras", compile=False)
+    model_style = tf.keras.models.load_model("StyleClass.h5", compile=False)
+    model_category = tf.keras.models.load_model("CategoryClass.h5", compile=False)
     return model_style, model_category
 
 model_style, model_category = load_models_keras()

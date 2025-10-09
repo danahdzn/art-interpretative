@@ -6,6 +6,7 @@ from sklearn.cluster import KMeans
 from openai import OpenAI
 import plotly.express as px
 import pandas as pd
+import plotly.graph_objects as go
 import base64
 from math import sqrt
 from transformers import pipeline, BlipProcessor, BlipForConditionalGeneration, AutoTokenizer, AutoModelForCausalLM

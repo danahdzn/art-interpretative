@@ -8,7 +8,6 @@ import plotly.express as px
 import pandas as pd
 import base64
 from math import sqrt
-import io
 from transformers import pipeline, BlipProcessor, BlipForConditionalGeneration, AutoTokenizer, AutoModelForCausalLM
 import hashlib
 
@@ -110,13 +109,12 @@ def get_palette(image, n_colors=7):
     return kmeans.cluster_centers_.astype(int)
 
 def display_palette(colors):
-    for color in colors:
+    cols = st.columns(len(colors))
+    for i, color in enumerate(colors):
         emotion = assign_emotion_to_color(color)
-        st.markdown(f"""
-        <div style='display:flex; align-items:center; margin-bottom:5px;'>
-            <div style='background-color: rgb{tuple(color)}; width:50px; height:50px; border-radius:5px; margin-right:10px;'></div>
-            <div style='font-weight:bold; color:#333;'>{emotion.capitalize()}</div>
-        </div>
+        cols[i].markdown(f"""
+            <div style='background-color: rgb{tuple(color)}; height:50px; border-radius:5px;'></div>
+            <p style='text-align:center; font-weight:bold; color:#333;'>{emotion.capitalize()}</p>
         """, unsafe_allow_html=True)
 
 def generate_interpretation(emotions, style, category, keywords, description=""):
@@ -195,6 +193,8 @@ if uploaded_file:
     image = Image.open(uploaded_file).convert("RGB")
     col_img, col_results = st.columns([1,1])
     with col_img: st.image(image, caption="Image uploaded", use_container_width=False, width=500)
+
+    # Obtener predicciones (cacheadas)
     style_result, category_result, emotion_result, description, emotion_text, colors, pred_style, pred_category, emotions_list, pred_emotions = predict_all(image)
 
     with col_results:
@@ -212,13 +212,10 @@ if uploaded_file:
             interpretation = generate_interpretation(emotion_result, style_result, category_result, keywords, description)
             st.write(interpretation)
 
-        pastel_styles = ['#FDCFE8', '#FADADD', '#FEE3E0', '#FFE0E6'] 
-        pastel_categories = ['#D6CDEA', '#E8D6F2', '#F2E0F8', '#F8EAFB']
-        pastel_emotions = ['#FFB3BA', '#FFDFBA', '#FFFFBA', '#BAFFC9', '#BAE1FF']
-
         # Tabs dashboard
         tab1, tab2, tab3 = st.tabs(["🎨 Style", "🖼️ Category", "💖 Emotion"])
         with tab1:
+            pastel_styles = ['#FDCFE8', '#FADADD', '#FEE3E0', '#FFE0E6']  # rosa pastel
             df_styles = pd.DataFrame({"Estilo": ['Contemporary Art', 'Modern Art', 'Post Renaissance Art','Renaissance Art'], "Probabilidad": pred_style})
             fig_styles = px.bar(df_styles, x="Estilo", y="Probabilidad",
                     title="Distribución de estilos",
@@ -226,6 +223,7 @@ if uploaded_file:
                     width=1000, height=500)
             st.plotly_chart(fig_styles, use_container_width=True)
         with tab2:
+            pastel_categories = ['#D6CDEA', '#E8D6F2', '#F2E0F8', '#F8EAFB']  # lila pastel
             df_categories = pd.DataFrame({"Categoría": ['Abstract Art', 'Abstract Expressionism', 'Art Informel', 'Baroque', 
                                                         'Color Field Painting', 'Cubism', 'Early Renaissance', 'Expressionism', 'High Renaissance',
                                                         'Impressionism', 'Lyrical Abstraction', 'Magic Realism', 'Minimalism', 'Neo-Expressionism', 
@@ -237,6 +235,7 @@ if uploaded_file:
                         width=1000, height=500)
             st.plotly_chart(fig_categories, use_container_width=True)
         with tab3:
+            pastel_emotions = ['#FFB3BA', '#FFDFBA', '#FFFFBA', '#BAFFC9', '#BAE1FF']
             df_emotions = pd.DataFrame({"Emoción": emotions_list, "Probabilidad": pred_emotions})
             fig_emotions = px.bar(df_emotions, x="Emoción", y="Probabilidad",
                       title="Distribución de emociones",

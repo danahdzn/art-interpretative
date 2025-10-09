@@ -103,7 +103,7 @@ def preprocess_image(image, target_size=(128,128)):
     img_array = np.array(img)/255.0
     return np.expand_dims(img_array, axis=0)
 
-def get_palette(image, n_colors=7):
+def get_palette(image, n_colors=9):
     img = image.resize((150,150))
     img_array = np.array(img).reshape(-1,3)
     kmeans = KMeans(n_clusters=n_colors, random_state=42).fit(img_array)
@@ -240,12 +240,10 @@ if uploaded_file:
             df_styles = pd.DataFrame({"Estilo": ['Contemporary Art', 'Modern Art', 'Post Renaissance Art','Renaissance Art'], "Probabilidad": pred_style})
             fig_styles = px.bar(df_styles, x="Estilo", y="Probabilidad",
                     title="Distribución de estilos",
-                    color="Probabilidad", color_discrete_sequence=pastel_styles,
+                    color="Probabilidad", color_discrete_sequence=px.colors.qualitative.Pastel1,
                     width=1000, height=500)
             st.plotly_chart(fig_styles, use_container_width=True)
         with tab2:
-            pastel_categories = ['#D6CDEA', '#E8D6F2', '#F2E0F8', '#F8EAFB']  # lila pastel
-            pastel_categories = expand_palette(pastel_categories, 22)
             df_categories = pd.DataFrame({"Categoría": ['Abstract Art', 'Abstract Expressionism', 'Art Informel', 'Baroque', 
                                                         'Color Field Painting', 'Cubism', 'Early Renaissance', 'Expressionism', 'High Renaissance',
                                                         'Impressionism', 'Lyrical Abstraction', 'Magic Realism', 'Minimalism', 'Neo-Expressionism', 
@@ -253,16 +251,14 @@ if uploaded_file:
                                           "Probabilidad": pred_category})
             fig_categories = px.bar(df_categories, x="Categoría", y="Probabilidad",
                         title="Distribución de categorías",
-                        color="Probabilidad", color_discrete_sequence=pastel_categories,
+                        color="Probabilidad", color_discrete_sequence=px.colors.qualitative.Pastel1,
                         width=1000, height=500)
             st.plotly_chart(fig_categories, use_container_width=True)
         with tab3:
-            pastel_emotions = ['#FFB3BA', '#FFDFBA', '#FFFFBA', '#BAFFC9', '#BAE1FF']
-            pastel_emotions = expand_palette(pastel_emotions, len(emotions_list))
             df_emotions = pd.DataFrame({"Emoción": emotions_list, "Probabilidad": pred_emotions})
             fig_emotions = px.bar(df_emotions, x="Emoción", y="Probabilidad",
                       title="Distribución de emociones",
-                      color="Probabilidad", color_discrete_sequence=pastel_emotions,
+                      color="Probabilidad", color_discrete_sequence=px.colors.qualitative.Pastel1,
                       width=1000, height=500)
             st.plotly_chart(fig_emotions, use_container_width=True)
 

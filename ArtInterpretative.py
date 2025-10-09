@@ -7,81 +7,105 @@ from openai import OpenAI
 import plotly.express as px
 import pandas as pd
 import base64
-import io
+from math import sqrt
+from transformers import pipeline, BlipProcessor, BlipForConditionalGeneration, AutoTokenizer, AutoModelForCausalLM
 
+# -----------------------------
+# Configuración OpenAI
+# -----------------------------
 try:
     client = OpenAI(api_key=st.secrets["OPENAI_API_KEY"])
 except Exception:
     client = None
 
-def image_to_base64(uploaded_file):
-    return base64.b64encode(uploaded_file.read()).decode("utf-8")
-
+# -----------------------------
+# Streamlit config y CSS
+# -----------------------------
 st.set_page_config(
     page_title="🎨 Art Interpretative",
     page_icon="🖌️",
     layout="wide"
 )
 
-# CSS para fondo rosita y encabezado
-st.markdown(
-    """
-    <style>
-    /* Fondo degradado rosa */
-    .stApp {
-        background: linear-gradient(135deg, #ffe6f0, #ffd6eb, #ffcce5, #ffb3da);
-    }
+st.markdown("""
+<style>
+.stApp {
+    background: linear-gradient(135deg, #ffe6f0, #ffd6eb, #ffcce5, #ffb3da);
+}
+.custom-header {
+    background-color: #FB9EC6;
+    padding: 20px;
+    border-radius: 10px;
+    text-align: center;
+    margin-bottom: 30px;
+    box-shadow: 0px 4px 10px rgba(0,0,0,0.2);
+}
+.custom-header h1 {
+    color: white;
+    font-size: 2.5em;
+    font-family: 'Trebuchet MS', sans-serif;
+    margin: 0;
+}
+</style>
 
-    /* Encabezado */
-    .custom-header {
-        background-color: #FB9EC6; /* rosa intenso */
-        padding: 20px;
-        border-radius: 10px;
-        text-align: center;
-        margin-bottom: 30px;
-        box-shadow: 0px 4px 10px rgba(0,0,0,0.2);
-    }
-    .custom-header h1 {
-        color: white;
-        font-size: 2.5em;
-        font-family: 'Trebuchet MS', sans-serif;
-        margin: 0;
-    }
-    </style>
+<div class="custom-header">
+    <h1>🎨 Art Interpretative 🌸</h1>
+</div>
+""", unsafe_allow_html=True)
 
-    <div class="custom-header">
-        <h1>🎨 Art Interpretative 🌸</h1>
-    </div>
-    """,
-    unsafe_allow_html=True
-)
-
-client = OpenAI(api_key=st.secrets["OPENAI_API_KEY"])
-
+# -----------------------------
+# Cargar modelos Hugging Face
+# -----------------------------
 @st.cache_resource
-def load_models():
+def load_models_transformers():
+    # BLIP para descripción
+    caption_model_name = "Salesforce/blip-image-captioning-large"
+    caption_processor = BlipProcessor.from_pretrained(caption_model_name)
+    caption_model = BlipForConditionalGeneration.from_pretrained(caption_model_name)
+
+    # Modelo para refinar emoción
+    emotion_model_name = "deepakshirkem/image-description_to_emotion"
+    emotion_tokenizer = AutoTokenizer.from_pretrained(emotion_model_name)
+    emotion_model = AutoModelForCausalLM.from_pretrained(emotion_model_name)
+
+    # Clasificador final de emociones
+    emotion_classifier = pipeline(
+        "text-classification",
+        model="j-hartmann/emotion-english-distilroberta-base",
+        return_all_scores=True
+    )
+
+    return caption_processor, caption_model, emotion_tokenizer, emotion_model, emotion_classifier
+
+caption_processor, caption_model, emotion_tokenizer, emotion_model, emotion_classifier = load_models_transformers()
+
+# -----------------------------
+# Modelos Keras para estilo y categoría
+# -----------------------------
+@st.cache_resource
+def load_models_keras():
     model_style = tf.keras.models.load_model("StyleClass.keras", compile=False)
     model_category = tf.keras.models.load_model("CategoryClass.keras", compile=False)
-    model_emotions = tf.keras.models.load_model("EmotionClass.keras", compile=False)
-    return model_style, model_category, model_emotions
+    return model_style, model_category
 
-from math import sqrt
+model_style, model_category = load_models_keras()
 
-# Diccionario base: emociones y sus colores representativos
+# -----------------------------
+# Funciones auxiliares
+# -----------------------------
 emotion_colors = {
-    "amor": (255, 105, 180),       # rosa fuerte
-    "felicidad": (255, 223, 0),    # amarillo brillante
-    "odio": (128, 0, 0),           # rojo oscuro
-    "enojo": (255, 0, 0),          # rojo vivo
-    "deseo": (255, 0, 127),        # fucsia
-    "tristeza": (30, 144, 255),    # azul medio
-    "decepción": (112, 128, 144),  # gris azulado
-    "miedo": (75, 0, 130),         # índigo
-    "paz": (144, 238, 144),        # verde claro
+    "amor": (255, 105, 180),
+    "felicidad": (255, 223, 0),
+    "odio": (128, 0, 0),
+    "enojo": (255, 0, 0),
+    "deseo": (255, 0, 127),
+    "tristeza": (30, 144, 255),
+    "decepción": (112, 128, 144),
+    "miedo": (75, 0, 130),
+    "paz": (144, 238, 144),
 }
 
 def assign_emotion_to_color(color_rgb):
-    """Asigna una emoción al color más cercano por distancia euclidiana en RGB."""
     min_distance = float('inf')
     closest_emotion = None
     for emotion, base_rgb in emotion_colors.items():
@@ -93,44 +117,39 @@ def assign_emotion_to_color(color_rgb):
 
 def preprocess_image(image, target_size=(128, 128)):
     img = image.resize(target_size)
-    img_array = np.array(img) / 255.0
+    img_array = np.array(img)/255.0
     img_array = np.expand_dims(img_array, axis=0)
     return img_array
 
 def get_palette(image, n_colors=7):
-    img = image.resize((150, 150))
-    img_array = np.array(img).reshape(-1, 3)
+    img = image.resize((150,150))
+    img_array = np.array(img).reshape(-1,3)
     kmeans = KMeans(n_clusters=n_colors, random_state=42).fit(img_array)
-    colors = kmeans.cluster_centers_.astype(int)
-    return colors
+    return kmeans.cluster_centers_.astype(int)
 
 def display_palette(colors):
     cols = st.columns(len(colors))
     for i, color in enumerate(colors):
         emotion = assign_emotion_to_color(color)
-        cols[i].markdown(
-            f"""
+        cols[i].markdown(f"""
             <div style='background-color: rgb{tuple(color)}; height: 50px; border-radius: 5px;'></div>
             <p style='text-align:center; font-weight:bold; color:#333;'>{emotion.capitalize()}</p>
-            """,
-            unsafe_allow_html=True
-        )
+        """, unsafe_allow_html=True)
 
 def generate_interpretation(emotions, style, category, keywords, description=""):
     if client is None:
         return " No se encontró API Key de OpenAI. Muestra de interpretación local."
-
     prompt = f"""
-    Analiza esta pintura. 
-    - Estilo: {style}
-    - Categoría: {category}
-    - Emociones detectadas: {emotions}
-    - Palabras clave: {', '.join(keywords)}
+Analiza esta pintura. 
+- Estilo: {style}
+- Categoría: {category}
+- Emociones detectadas: {emotions}
+- Palabras clave: {', '.join(keywords)}
 
-    {description}
+{description}
 
-    Por favor escribe un breve resumen de la categoria y estilo al que pertenece la obra
-    """
+Por favor escribe un breve resumen de la categoria y estilo al que pertenece la obra
+"""
     try:
         response = client.chat.completions.create(
             model="gpt-4o-mini",
@@ -141,44 +160,62 @@ def generate_interpretation(emotions, style, category, keywords, description="")
     except Exception as e:
         return f"Error generando interpretación: {e}"
 
-# Cargar modelos
-model_style, model_category, model_emotions = load_models()
-
+# -----------------------------
+# Interfaz principal
+# -----------------------------
 st.markdown("💡 Upload your picture")
-col_left, col_right = st.columns([1, 1])
-
-uploaded_file = st.file_uploader("📂 Upload your picture", type=["jpg", "png", "jpeg"])
+uploaded_file = st.file_uploader("📂 Upload your picture", type=["jpg","png","jpeg"])
 
 if uploaded_file is not None:
     image = Image.open(uploaded_file).convert("RGB")
-    col_img, col_results = st.columns([1, 1])
+    col_img, col_results = st.columns([1,1])
 
     with col_img:
         st.image(image, caption="Image uploaded", use_container_width=False, width=500)
 
     with col_results:
+        # ---------------------
+        # Predicción estilo/categoría
+        # ---------------------
         img_array = preprocess_image(image)
-        pred_style = model_style.predict(img_array)
-        pred_category = model_category.predict(img_array)
-        pred_emotions = model_emotions.predict(img_array)
-        pred_style = pred_style[0]
-        pred_category = pred_category[0]
-        pred_emotions = pred_emotions[0]
+        pred_style = model_style.predict(img_array)[0]
+        pred_category = model_category.predict(img_array)[0]
 
         styles = ['Contemporary Art', 'Modern Art', 'Post Renaissance Art','Renaissance Art']
         categories = ['Abstract Art', 'Abstract Expressionism', 'Art Informel', 'Baroque', 
         'Color Field Painting', 'Cubism', 'Early Renaissance', 'Expressionism', 'High Renaissance',
         'Impressionism', 'Lyrical Abstraction', 'Magic Realism', 'Minimalism', 'Neo-Expressionism', 
         'Neoclassicism', 'Northern Renaissance', 'Pop Art', 'Post-Impressionism', 'Realism', 'Rococo', 'Romanticism', 'Surrealism']
-        emotions_list = ['agreeableness', 'anger','anticipation', 'arrogance','disagreeableness', 
-            'disgust', 'fear','gratitude', 'happiness', 'humility','love', 'optimism', 
-            'pessimism','regret', 'sadness', 'shame','shyness', 'surprise']
 
         style_result = styles[np.argmax(pred_style)]
         category_result = categories[np.argmax(pred_category)]
-        emotion_result = emotions_list[np.argmax(pred_emotions)]
 
+        # ---------------------
+        # Generar descripción y emociones
+        # ---------------------
+        inputs_blip = caption_processor(image, return_tensors="pt")
+        caption_ids = caption_model.generate(**inputs_blip, max_new_tokens=50)
+        description = caption_processor.decode(caption_ids[0], skip_special_tokens=True)
+        st.subheader("📝 Descripción de la obra")
+        st.write(description)
+
+        # Refinar emoción
+        prompt_emotion = f"Describe the emotion conveyed by this image: {description}"
+        inputs_em = emotion_tokenizer(prompt_emotion, return_tensors="pt")
+        outputs_em = emotion_model.generate(**inputs_em, max_new_tokens=40)
+        emotion_text = emotion_tokenizer.decode(outputs_em[0], skip_special_tokens=True)
+        st.subheader("💭 Descripción emocional")
+        st.write(emotion_text)
+
+        # Clasificar emociones múltiples
+        emotions_scores = emotion_classifier(emotion_text)[0]
+        emotions_list = [e['label'] for e in emotions_scores]
+        pred_emotions = [e['score'] for e in emotions_scores]
+        emotion_result = emotions_list[pred_emotions.index(max(pred_emotions))]
+
+        # ---------------------
         # Paleta de colores
+        # ---------------------
         colors = get_palette(image)
         st.subheader("🎨 Paleta de colores")
         display_palette(colors)
@@ -188,48 +225,46 @@ if uploaded_file is not None:
 
         with st.expander("🖌 Interpretación metadata"):
             interpretation = generate_interpretation(
-                emotion_result, style_result, category_result, keywords
+                emotion_result, style_result, category_result, keywords, description
             )
             st.write(interpretation)
 
-        # -------------------
-        # Dashboard con tabs
-        # -------------------
+        # ---------------------
+        # Dashboard tabs
+        # ---------------------
         tab1, tab2, tab3 = st.tabs(["🎨 Style", "🖼️ Category", "💖 Emotion"])
 
         with tab1:
-
-            df_styles = pd.DataFrame({"Estilo": styles, "Probabilidad": pred_style})  # <--- corregido
+            df_styles = pd.DataFrame({"Estilo": styles, "Probabilidad": pred_style})
             fig_styles = px.bar(df_styles, x="Estilo", y="Probabilidad",
-                    title="Distribución de estilos",
-                    color="Probabilidad", color_continuous_scale="Blues", width=1000, height=500)
+                                title="Distribución de estilos",
+                                color="Probabilidad", color_continuous_scale="Blues",
+                                width=1000, height=500)
             st.plotly_chart(fig_styles, use_container_width=True)
 
         with tab2:
             min_len_cat = min(len(categories), len(pred_category))
-            categories = categories[:min_len_cat]
-            pred_category = pred_category[:min_len_cat]
-            df_categories = pd.DataFrame({"Categoría": categories, "Probabilidad": pred_category})  # <--- corregido
+            df_categories = pd.DataFrame({"Categoría": categories[:min_len_cat], "Probabilidad": pred_category[:min_len_cat]})
             fig_categories = px.bar(df_categories, x="Categoría", y="Probabilidad",
-                        title="Distribución de categorías",
-                        color="Probabilidad", color_continuous_scale="Purples",
-                         width=1000, height=500)
+                                    title="Distribución de categorías",
+                                    color="Probabilidad", color_continuous_scale="Purples",
+                                    width=1000, height=500)
             st.plotly_chart(fig_categories, use_container_width=True)
 
         with tab3:
-            min_len_emo = min(len(emotions_list), len(pred_emotions))
-            emotions_list = emotions_list[:min_len_emo]
-            pred_emotions = pred_emotions[:min_len_emo]
-            df_emotions = pd.DataFrame({"Emoción": emotions_list, "Probabilidad": pred_emotions})  # <--- corregido
+            df_emotions = pd.DataFrame({"Emoción": emotions_list, "Probabilidad": pred_emotions})
             fig_emotions = px.bar(df_emotions, x="Emoción", y="Probabilidad",
-                      title="Distribución de emociones",
-                      color="Probabilidad", color_continuous_scale="Reds",
-                      width=1000, height=500)
+                                  title="Distribución de emociones",
+                                  color="Probabilidad", color_continuous_scale="Reds",
+                                  width=1000, height=500)
             st.plotly_chart(fig_emotions, use_container_width=True)
 
+        # ---------------------
         # Resultados finales
+        # ---------------------
         st.subheader("Results")
         st.markdown(f"**Style:** {style_result}")
         st.markdown(f"**Category:** {category_result}")
         st.markdown(f"**Emotion:** {emotion_result}")
         st.markdown(f"**Keyword:** {', '.join(keywords)}")
+
